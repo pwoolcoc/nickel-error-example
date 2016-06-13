@@ -1,0 +1,50 @@
+#![feature(prelude_import)]
+#![no_std]
+#[prelude_import]
+use std::prelude::v1::*;
+#[macro_use]
+extern crate std as std;
+#[macro_use]
+extern crate nickel;
+
+use nickel::{Nickel, Router, MiddlewareResult, Request, Response, HttpRouter};
+use nickel::Action::Continue;
+
+struct ServerData;
+
+fn main() {
+    let mut server = Nickel::with_data(ServerData);
+
+    server.utilize(explicit_router());
+
+    server.listen("0.0.0.0:0");
+}
+
+fn explicit_router() -> Router<ServerData> {
+    let mut router = Nickel::router();
+
+    router.get("/",
+               {
+                   use ::nickel::{MiddlewareResult, Responder, Response,
+                                  Request};
+                   #[inline(always)]
+                   fn restrict<'mw,
+                               R: Responder<ServerData>>(r: R,
+                                                         res:
+                                                             Response<'mw,
+                                                             ServerData>)
+                    -> MiddlewareResult<'mw, ServerData> {
+                       res.send(r)
+                   }
+                   #[inline(always)]
+                   fn restrict_closure<F>(f: F) -> F where F: for<'r, 'mw,
+                    'conn>Fn(&'r mut Request<'mw, 'conn, ServerData>,
+                             Response<'mw, ServerData>) ->
+                    MiddlewareResult<'mw, ServerData> + Send + Sync {
+                       f
+                   }
+                   restrict_closure(move |req, res| {
+                                    restrict({ res.send("aoe") }, res) })
+               });
+    router
+}
